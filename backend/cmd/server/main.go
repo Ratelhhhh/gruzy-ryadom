@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"fmt"
 	"log"
 	"net/http"
 	"os"
@@ -10,13 +9,14 @@ import (
 	"syscall"
 	"time"
 
+	"gruzy-ryadom/internal/api"
+	"gruzy-ryadom/internal/db"
+	"gruzy-ryadom/internal/service"
+
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/go-chi/cors"
 	"github.com/joho/godotenv"
-	"gruzy-ryadom/internal/api"
-	"gruzy-ryadom/internal/db"
-	"gruzy-ryadom/internal/service"
 )
 
 func main() {
