@@ -24,10 +24,14 @@ services:
       PORT: 8080
     volumes:
       - ./config.yaml:/app/config.yaml
+      - ./.env:/app/.env
     depends_on:
       - postgres
     ports:
       - "8080:8080"
+    dns:
+      - 8.8.8.8
+      - 8.8.4.4
 
   api-only:
     build:
@@ -48,7 +52,7 @@ services:
     ports:
       - "80:80"
     depends_on:
-      - app
+      - api-only
 
 volumes:
   postgres_data:
