@@ -14,7 +14,9 @@ services:
       - "5432:5432"
 
   app:
-    build: ./backend
+    build:
+      context: ./backend
+      dockerfile: Dockerfile.simple
     environment:
       DATABASE_URL: postgres://postgres:password@postgres:5432/gruzy_ryadom?sslmode=disable
       DRIVER_BOT_TOKEN: ${DRIVER_BOT_TOKEN}
@@ -26,6 +28,20 @@ services:
       - postgres
     ports:
       - "8080:8080"
+
+  api-only:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile.api-only
+    environment:
+      DATABASE_URL: postgres://postgres:password@postgres:5432/gruzy_ryadom?sslmode=disable
+      PORT: 8081
+    volumes:
+      - ./config.yaml:/app/config.yaml
+    depends_on:
+      - postgres
+    ports:
+      - "8081:8081"
 
   frontend:
     build: ./frontend
