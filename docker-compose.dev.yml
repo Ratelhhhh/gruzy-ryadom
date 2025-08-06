@@ -1,0 +1,43 @@
+version: "3.8"
+
+services:
+  postgres:
+    image: postgres:15-alpine
+    environment:
+      POSTGRES_DB: gruzy_ryadom
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: password
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./backend/migrations:/docker-entrypoint-initdb.d
+    ports:
+      - "5432:5432"
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    environment:
+      DATABASE_URL: postgres://postgres:password@postgres:5432/gruzy_ryadom?sslmode=disable
+      DRIVER_BOT_TOKEN: ${DRIVER_BOT_TOKEN}
+      ADMIN_BOT_TOKEN: ${ADMIN_BOT_TOKEN}
+      PORT: 8080
+    volumes:
+      - ./backend:/app
+      - /app/main
+    depends_on:
+      - postgres
+    ports:
+      - "8080:8080"
+    restart: unless-stopped
+
+  frontend:
+    build: ./frontend
+    ports:
+      - "80:80"
+    depends_on:
+      - backend
+    restart: unless-stopped
+
+volumes:
+  postgres_data: 

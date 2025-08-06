@@ -13,46 +13,26 @@ services:
     ports:
       - "5432:5432"
 
-  app:
-    build:
-      context: ./backend
-      dockerfile: Dockerfile.simple
+  backend:
+    image: ghcr.io/${GITHUB_REPOSITORY:-your-username/gruzy-ryadom}/backend:main
     environment:
       DATABASE_URL: postgres://postgres:password@postgres:5432/gruzy_ryadom?sslmode=disable
       DRIVER_BOT_TOKEN: ${DRIVER_BOT_TOKEN}
       ADMIN_BOT_TOKEN: ${ADMIN_BOT_TOKEN}
       PORT: 8080
-    volumes:
-      - ./config.yaml:/app/config.yaml
-      - ./.env:/app/.env
     depends_on:
       - postgres
     ports:
       - "8080:8080"
-    dns:
-      - 8.8.8.8
-      - 8.8.4.4
-
-  api-only:
-    build:
-      context: ./backend
-      dockerfile: Dockerfile.api-only
-    environment:
-      DATABASE_URL: postgres://postgres:password@postgres:5432/gruzy_ryadom?sslmode=disable
-      PORT: 8081
-    volumes:
-      - ./config.yaml:/app/config.yaml
-    depends_on:
-      - postgres
-    ports:
-      - "8081:8081"
+    restart: unless-stopped
 
   frontend:
-    build: ./frontend
+    image: ghcr.io/${GITHUB_REPOSITORY:-your-username/gruzy-ryadom}/frontend:main
     ports:
       - "80:80"
     depends_on:
-      - api-only
+      - backend
+    restart: unless-stopped
 
 volumes:
   postgres_data:

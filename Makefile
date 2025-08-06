@@ -1,101 +1,65 @@
-.PHONY: help build up down logs clean
+.PHONY: help build run dev down logs clean test
 
 # Default target
 help:
 	@echo "Доступные команды:"
-	@echo "  build    - Собрать все контейнеры"
-	@echo "  up       - Запустить приложение"
+	@echo "  build    - Собрать Docker образы локально"
+	@echo "  run      - Запустить приложение (production)"
+	@echo "  dev      - Запустить приложение (development)"
 	@echo "  down     - Остановить приложение"
 	@echo "  logs     - Показать логи"
-	@echo "  clean    - Очистить все контейнеры и образы"
-	@echo "  clean-bin - Очистить бинарные файлы"
-	@echo "  dev      - Запустить в режиме разработки"
-	@echo "  prod     - Запустить в продакшн режиме"
-	@echo "  config   - Проверить конфигурацию"
-	@echo "  check    - Проверить работоспособность"
+	@echo "  clean    - Очистить Docker ресурсы"
+	@echo "  test     - Запустить тесты"
 
-# Build all containers
+# Build Docker images locally
 build:
-	docker-compose build
+	docker-compose -f docker-compose.dev.yml build
 
-# Start the application
-up:
+# Run in production mode (using GitHub Container Registry)
+run:
+	@if [ ! -f .env ]; then \
+		echo "Создайте .env файл из env.example"; \
+		cp env.example .env; \
+		echo "Отредактируйте .env файл и добавьте токены ботов"; \
+		exit 1; \
+	fi
 	docker-compose up -d
 
-# Stop the application
+# Run in development mode (local build)
+dev:
+	@if [ ! -f .env ]; then \
+		echo "Создайте .env файл из env.example"; \
+		cp env.example .env; \
+		echo "Отредактируйте .env файл и добавьте токены ботов"; \
+		exit 1; \
+	fi
+	docker-compose -f docker-compose.dev.yml up -d
+
+# Stop application
 down:
 	docker-compose down
+	docker-compose -f docker-compose.dev.yml down
 
 # Show logs
 logs:
 	docker-compose logs -f
 
-# Clean everything
+# Clean Docker resources
 clean:
-	docker-compose down -v --rmi all
+	docker-compose down -v --remove-orphans
+	docker-compose -f docker-compose.dev.yml down -v --remove-orphans
 	docker system prune -f
 
-# Clean binaries
-clean-bin:
-	@echo "Очистка бинарных файлов..."
-	@find . -name "main" -type f -delete 2>/dev/null || true
-	@find . -name "app" -type f -delete 2>/dev/null || true
-	@find . -name "server" -type f -delete 2>/dev/null || true
-	@find . -name "driver_bot" -type f -delete 2>/dev/null || true
-	@find . -name "admin_bot" -type f -delete 2>/dev/null || true
-	@find . -name "*.exe" -type f -delete 2>/dev/null || true
-	@find . -name "*.test" -type f -delete 2>/dev/null || true
-	@find . -name "*.out" -type f -delete 2>/dev/null || true
-	@echo "✅ Бинарные файлы удалены"
+# Run tests
+test:
+	cd backend && go test ./...
 
-# Development mode (with volume mounts for hot reload)
-dev:
-	docker-compose -f docker-compose.dev.yml up
+# Update application
+update:
+	git pull
+	docker-compose down
+	docker-compose up -d
 
-# Production mode
-prod:
-	docker-compose -f docker-compose.prod.yml up -d
-
-# Quick start (build and run)
-start: config build up
-	@echo "Приложение запущено!"
-	@echo "Frontend: http://localhost"
-	@echo "Backend API: http://localhost:8080"
-	@echo "Database: localhost:5432"
-
-# Check status
+# Show status
 status:
 	docker-compose ps
-
-# Restart services
-restart:
-	docker-compose restart
-
-# Update and restart
-update: down build up
-	@echo "Приложение обновлено и перезапущено!"
-
-# Check configuration
-config:
-	@echo "Проверка конфигурации..."
-	@if [ ! -f ".env" ]; then \
-		echo "❌ Файл .env не найден. Скопируйте env.example в .env"; \
-		exit 1; \
-	fi
-	@if [ ! -f "config.yaml" ]; then \
-		echo "❌ Файл config.yaml не найден"; \
-		exit 1; \
-	fi
-	@echo "✅ Конфигурация в порядке"
-	@echo "📝 config.yaml - основные настройки"
-	@echo "🔐 .env - токены ботов"
-
-# Check application health
-check:
-	@echo "Проверка работоспособности приложения..."
-	@if [ -f "scripts/check.sh" ]; then \
-		./scripts/check.sh; \
-	else \
-		echo "❌ Скрипт проверки не найден"; \
-		exit 1; \
-	fi
