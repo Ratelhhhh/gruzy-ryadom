@@ -11,6 +11,7 @@ import (
 	"syscall"
 	"time"
 
+	"gruzy-ryadom/config"
 	"gruzy-ryadom/internal/api"
 	"gruzy-ryadom/internal/bots"
 	"gruzy-ryadom/internal/db"
@@ -37,13 +38,20 @@ type TestApplication struct {
 func NewTestApplication() (*TestApplication, error) {
 	ctx, cancel := context.WithCancel(context.Background())
 
+	// Load configuration
+	cfg, err := config.Load()
+	if err != nil {
+		cancel()
+		return nil, fmt.Errorf("failed to load configuration: %w", err)
+	}
+
 	// Database connection
-	dbURL := os.Getenv("DATABASE_URL")
-	if dbURL == "" {
+	if cfg.Database.URL == "" {
+		cancel()
 		return nil, fmt.Errorf("DATABASE_URL is required")
 	}
 
-	database, err := db.New(dbURL)
+	database, err := db.New(cfg.Database.URL)
 	if err != nil {
 		cancel()
 		return nil, fmt.Errorf("failed to connect to database: %w", err)
@@ -57,18 +65,15 @@ func NewTestApplication() (*TestApplication, error) {
 	var driverBot *bots.DriverBot
 	hasBots := false
 
-	adminBotToken := os.Getenv("ADMIN_BOT_TOKEN")
-	driverBotToken := os.Getenv("DRIVER_BOT_TOKEN")
-
-	if adminBotToken != "" && driverBotToken != "" {
+	if cfg.Bots.AdminBotToken != "" && cfg.Bots.DriverBotToken != "" {
 		log.Println("Attempting to create Telegram bots...")
 
-		adminBot, err = bots.NewAdminBot(adminBotToken, svc)
+		adminBot, err = bots.NewAdminBot(cfg.Bots.AdminBotToken, svc)
 		if err != nil {
 			log.Printf("Warning: Failed to create admin bot: %v", err)
 			log.Println("Application will run without admin bot")
 		} else {
-			driverBot, err = bots.NewDriverBot(driverBotToken, svc)
+			driverBot, err = bots.NewDriverBot(cfg.Bots.DriverBotToken, svc)
 			if err != nil {
 				log.Printf("Warning: Failed to create driver bot: %v", err)
 				log.Println("Application will run without driver bot")
@@ -122,13 +127,8 @@ func NewTestApplication() (*TestApplication, error) {
 	// API routes
 	r.Mount("/", apiHandler.Routes())
 
-	port := os.Getenv("PORT")
-	if port == "" {
-		port = "8080"
-	}
-
 	server := &http.Server{
-		Addr:         ":" + port,
+		Addr:         ":" + cfg.Server.Port,
 		Handler:      r,
 		ReadTimeout:  15 * time.Second,
 		WriteTimeout: 15 * time.Second,

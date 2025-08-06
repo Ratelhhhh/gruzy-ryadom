@@ -29,18 +29,30 @@ type BotsConfig struct {
 }
 
 func Load() (*Config, error) {
-	// Read YAML config file
-	configData, err := os.ReadFile("config.yaml")
-	if err != nil {
-		return nil, fmt.Errorf("failed to read config.yaml: %w", err)
-	}
-
 	config := &Config{}
-	if err := yaml.Unmarshal(configData, config); err != nil {
-		return nil, fmt.Errorf("failed to parse config.yaml: %w", err)
+	
+	// Try to read YAML config file (optional)
+	configData, err := os.ReadFile("config.yaml")
+	if err == nil {
+		if err := yaml.Unmarshal(configData, config); err != nil {
+			return nil, fmt.Errorf("failed to parse config.yaml: %w", err)
+		}
+	} else {
+		// If config.yaml doesn't exist, use defaults
+		config.Server.Port = "8080"
+		config.Env = "development"
 	}
 
-	// Load bot tokens from environment variables
+	// Override with environment variables (environment variables take precedence)
+	if dbURL := getEnv("DATABASE_URL", ""); dbURL != "" {
+		config.Database.URL = dbURL
+	}
+	
+	if port := getEnv("PORT", ""); port != "" {
+		config.Server.Port = port
+	}
+
+	// Load bot tokens from environment variables (required)
 	config.Bots = BotsConfig{
 		DriverBotToken: getEnv("DRIVER_BOT_TOKEN", ""),
 		AdminBotToken:  getEnv("ADMIN_BOT_TOKEN", ""),

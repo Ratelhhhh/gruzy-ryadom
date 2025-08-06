@@ -1,10 +1,13 @@
 # Production configuration for Gruzy Ryadom application
+# Note: Environment variables (DATABASE_URL, PORT) take precedence over this file
 
 # Database configuration
+# Can be overridden by DATABASE_URL environment variable
 database:
   url: "postgres://postgres:password@postgres:5432/gruzy_ryadom?sslmode=disable"
 
 # Server configuration
+# Can be overridden by PORT environment variable
 server:
   port: "8080"
 
