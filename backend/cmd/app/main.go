@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"log"
 	"net/http"
 	"os"
@@ -14,81 +15,72 @@ import (
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/go-chi/cors"
 	"github.com/joho/godotenv"
-	"gruzy-ryadom/config"
 	"gruzy-ryadom/internal/api"
 	"gruzy-ryadom/internal/bots"
 	"gruzy-ryadom/internal/db"
 	"gruzy-ryadom/internal/service"
 )
 
-func main() {
-	// Load environment variables
-	if err := godotenv.Load(); err != nil {
-		log.Println("No .env file found")
-	}
+type Application struct {
+	server     *http.Server
+	adminBot   *bots.AdminBot
+	driverBot  *bots.DriverBot
+	service    *service.Service
+	database   *db.DB
+	ctx        context.Context
+	cancel     context.CancelFunc
+	wg         sync.WaitGroup
+}
 
-	// Load configuration
-	cfg, err := config.Load()
-	if err != nil {
-		log.Fatalf("Failed to load config: %v", err)
-	}
+func NewApplication() (*Application, error) {
+	ctx, cancel := context.WithCancel(context.Background())
 
 	// Database connection
-	database, err := db.New(cfg.Database.URL)
-	if err != nil {
-		log.Fatalf("Failed to connect to database: %v", err)
+	dbURL := os.Getenv("DATABASE_URL")
+	if dbURL == "" {
+		return nil, fmt.Errorf("DATABASE_URL is required")
 	}
-	defer database.Close()
+
+	database, err := db.New(dbURL)
+	if err != nil {
+		cancel()
+		return nil, fmt.Errorf("failed to connect to database: %w", err)
+	}
 
 	// Service layer
 	svc := service.New(database)
 
-	// Create context for graceful shutdown
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	// Create bots
+	adminBotToken := os.Getenv("ADMIN_BOT_TOKEN")
+	if adminBotToken == "" {
+		cancel()
+		database.Close()
+		return nil, fmt.Errorf("ADMIN_BOT_TOKEN is required")
+	}
 
-	// Wait group for all services
-	var wg sync.WaitGroup
+	driverBotToken := os.Getenv("DRIVER_BOT_TOKEN")
+	if driverBotToken == "" {
+		cancel()
+		database.Close()
+		return nil, fmt.Errorf("DRIVER_BOT_TOKEN is required")
+	}
 
-	// Start REST API server
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		startAPIServer(ctx, cfg, svc)
-	}()
+	adminBot, err := bots.NewAdminBot(adminBotToken, svc)
+	if err != nil {
+		cancel()
+		database.Close()
+		return nil, fmt.Errorf("failed to create admin bot: %w", err)
+	}
 
-	// Start Driver Bot
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		startDriverBot(ctx, cfg, svc)
-	}()
+	driverBot, err := bots.NewDriverBot(driverBotToken, svc)
+	if err != nil {
+		cancel()
+		database.Close()
+		return nil, fmt.Errorf("failed to create driver bot: %w", err)
+	}
 
-	// Start Admin Bot
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		startAdminBot(ctx, cfg, svc)
-	}()
-
-	// Wait for interrupt signal
-	quit := make(chan os.Signal, 1)
-	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
-	<-quit
-
-	log.Println("Shutting down application...")
-	cancel()
-
-	// Wait for all services to finish
-	wg.Wait()
-	log.Println("Application stopped")
-}
-
-func startAPIServer(ctx context.Context, cfg *config.Config, svc *service.Service) {
-	// API layer
+	// Create HTTP server
 	apiHandler := api.New(svc)
-
-	// Router
 	r := chi.NewRouter()
 
 	// Middleware
@@ -117,75 +109,120 @@ func startAPIServer(ctx context.Context, cfg *config.Config, svc *service.Servic
 	// API routes
 	r.Mount("/", apiHandler.Routes())
 
-	// Server
-	srv := &http.Server{
-		Addr:         ":" + cfg.Server.Port,
+	port := os.Getenv("PORT")
+	if port == "" {
+		port = "8080"
+	}
+
+	server := &http.Server{
+		Addr:         ":" + port,
 		Handler:      r,
 		ReadTimeout:  15 * time.Second,
 		WriteTimeout: 15 * time.Second,
 		IdleTimeout:  60 * time.Second,
 	}
 
-	// Start server in goroutine
+	return &Application{
+		server:    server,
+		adminBot:  adminBot,
+		driverBot: driverBot,
+		service:   svc,
+		database:  database,
+		ctx:       ctx,
+		cancel:    cancel,
+	}, nil
+}
+
+func (app *Application) Start() error {
+	log.Println("Starting application...")
+
+	// Start bots in goroutines
+	app.wg.Add(2)
 	go func() {
-		log.Printf("API Server starting on port %s", cfg.Server.Port)
-		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			log.Fatalf("Failed to start API server: %v", err)
+		defer app.wg.Done()
+		log.Println("Starting admin bot...")
+		app.adminBot.Start()
+	}()
+
+	go func() {
+		defer app.wg.Done()
+		log.Println("Starting driver bot...")
+		app.driverBot.Start()
+	}()
+
+	// Start HTTP server in goroutine
+	app.wg.Add(1)
+	go func() {
+		defer app.wg.Done()
+		log.Printf("Starting HTTP server on port %s", app.server.Addr)
+		if err := app.server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			log.Printf("HTTP server error: %v", err)
 		}
 	}()
 
-	// Wait for context cancellation
-	<-ctx.Done()
-
-	// Graceful shutdown
-	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 30*time.Second)
-	defer shutdownCancel()
-
-	if err := srv.Shutdown(shutdownCtx); err != nil {
-		log.Printf("API Server forced to shutdown: %v", err)
-	} else {
-		log.Println("API Server stopped gracefully")
-	}
+	return nil
 }
 
-func startDriverBot(ctx context.Context, cfg *config.Config, svc *service.Service) {
-	bot, err := bots.NewDriverBot(cfg.Bots.DriverBotToken, svc)
-	if err != nil {
-		log.Fatalf("Failed to create driver bot: %v", err)
+func (app *Application) Stop() error {
+	log.Println("Stopping application...")
+
+	// Cancel context to signal shutdown
+	app.cancel()
+
+	// Stop bots
+	if app.adminBot != nil {
+		app.adminBot.Stop()
+	}
+	if app.driverBot != nil {
+		app.driverBot.Stop()
 	}
 
-	log.Println("Driver Bot starting...")
-	
-	// Start bot in goroutine
-	go func() {
-		bot.Start()
-	}()
+	// Shutdown HTTP server
+	if app.server != nil {
+		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		defer cancel()
+		if err := app.server.Shutdown(ctx); err != nil {
+			log.Printf("HTTP server shutdown error: %v", err)
+		}
+	}
 
-	// Wait for context cancellation
-	<-ctx.Done()
-	
-	// Stop bot
-	bot.Stop()
-	log.Println("Driver Bot stopped")
+	// Close database
+	if app.database != nil {
+		app.database.Close()
+	}
+
+	// Wait for all goroutines to finish
+	app.wg.Wait()
+
+	log.Println("Application stopped")
+	return nil
 }
 
-func startAdminBot(ctx context.Context, cfg *config.Config, svc *service.Service) {
-	bot, err := bots.NewAdminBot(cfg.Bots.AdminBotToken, svc)
-	if err != nil {
-		log.Fatalf("Failed to create admin bot: %v", err)
+func main() {
+	if err := godotenv.Load(); err != nil {
+		log.Println("No .env file found")
 	}
 
-	log.Println("Admin Bot starting...")
-	
-	// Start bot in goroutine
-	go func() {
-		bot.Start()
-	}()
+	// Create application
+	app, err := NewApplication()
+	if err != nil {
+		log.Fatalf("Failed to create application: %v", err)
+	}
 
-	// Wait for context cancellation
-	<-ctx.Done()
-	
-	// Stop bot
-	bot.Stop()
-	log.Println("Admin Bot stopped")
+	// Start application
+	if err := app.Start(); err != nil {
+		log.Fatalf("Failed to start application: %v", err)
+	}
+
+	// Wait for interrupt signal
+	quit := make(chan os.Signal, 1)
+	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
+	<-quit
+
+	log.Println("Received shutdown signal...")
+
+	// Stop application
+	if err := app.Stop(); err != nil {
+		log.Printf("Error stopping application: %v", err)
+	}
 } 

@@ -16,8 +16,10 @@ services:
   app:
     build: ./backend
     environment:
+      DATABASE_URL: postgres://postgres:password@postgres:5432/gruzy_ryadom?sslmode=disable
       DRIVER_BOT_TOKEN: ${DRIVER_BOT_TOKEN}
       ADMIN_BOT_TOKEN: ${ADMIN_BOT_TOKEN}
+      PORT: 8080
     volumes:
       - ./config.yaml:/app/config.yaml
     depends_on:
