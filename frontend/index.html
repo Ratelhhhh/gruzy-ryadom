@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Грузы рядом - Поиск грузоперевозок</title>
+    <meta name="description" content="Найдите грузы для перевозки или создайте заказ на перевозку">
+    <link rel="manifest" href="/manifest.json">
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🚛</text></svg>">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>�� Грузы рядом</h1>
+            <p>Найдите грузы для перевозки</p>
+        </header>
+
+        <main>
+            <section class="search-section">
+                <div class="search-form">
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="from">Откуда</label>
+                            <input type="text" id="from" placeholder="Москва">
+                        </div>
+                        <div class="form-group">
+                            <label for="to">Куда</label>
+                            <input type="text" id="to" placeholder="Казань">
+                        </div>
+                    </div>
+                    
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="min-weight">Вес от (кг)</label>
+                            <input type="number" id="min-weight" placeholder="0">
+                        </div>
+                        <div class="form-group">
+                            <label for="max-weight">Вес до (кг)</label>
+                            <input type="number" id="max-weight" placeholder="1000">
+                        </div>
+                        <div class="form-group">
+                            <label for="min-price">Цена от (₽)</label>
+                            <input type="number" id="min-price" placeholder="0">
+                        </div>
+                        <div class="form-group">
+                            <label for="max-price">Цена до (₽)</label>
+                            <input type="number" id="max-price" placeholder="50000">
+                        </div>
+                    </div>
+
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="tags">Теги (через запятую)</label>
+                            <input type="text" id="tags" placeholder="fragile,dangerous">
+                        </div>
+                        <div class="form-group">
+                            <label for="sort">Сортировка</label>
+                            <select id="sort">
+                                <option value="price">По цене</option>
+                                <option value="weight">По весу</option>
+                                <option value="price/weight">По цене за кг</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <button type="button" id="search-btn" class="btn-primary">🔍 Найти грузы</button>
+                </div>
+            </section>
+
+            <section class="results-section">
+                <div class="results-header">
+                    <h2>Результаты поиска</h2>
+                    <div class="results-info">
+                        <span id="results-count">0</span> заказов
+                    </div>
+                </div>
+                
+                <div id="loading" class="loading hidden">
+                    <div class="spinner"></div>
+                    <p>Загружаем...</p>
+                </div>
+
+                <div id="results" class="results-grid">
+                    <!-- Results will be populated here -->
+                </div>
+
+                <div id="no-results" class="no-results hidden">
+                    <p>😔 По вашему запросу ничего не найдено</p>
+                    <p>Попробуйте изменить параметры поиска</p>
+                </div>
+
+                <div class="pagination">
+                    <button id="prev-page" class="btn-secondary" disabled>← Назад</button>
+                    <span id="page-info">Страница 1</span>
+                    <button id="next-page" class="btn-secondary" disabled>Вперед →</button>
+                </div>
+            </section>
+        </main>
+
+        <footer>
+            <p>&copy; 2025 Грузы рядом. Все права защищены.</p>
+        </footer>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>

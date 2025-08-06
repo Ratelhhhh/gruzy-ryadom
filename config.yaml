@@ -1,0 +1,12 @@
+# Configuration file for Gruzy Ryadom application
+
+# Database configuration
+database:
+  url: "postgres://postgres:password@localhost:5432/gruzy_ryadom?sslmode=disable"
+
+# Server configuration
+server:
+  port: "8080"
+
+# Environment
+env: "development" 
